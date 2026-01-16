@@ -21,3 +21,13 @@ s.mnozstvi as amount,
 dense_rank()over(partition by o.chemvzorec order by s.mnozstvi desc) as oxide_rank
 from frity f join slozeni s on f.id=s.id_pol 
 join oxidy o on s.id_sur = o.id
+
+-- Top 5 frits by content of selected oxides
+with cte as(select f.nazev as frit_name,
+o.chemvzorec as formula,
+s.mnozstvi as amount,
+rank()over(partition by o.chemvzorec order by s.mnozstvi desc) as oxide_rank
+from frity f join slozeni s on f.id=s.id_pol
+join oxidy o on s.id_sur = o.id)
+select * from cte
+where oxide_rank in (1,2,3,4,5)
