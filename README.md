@@ -1,2 +1,2 @@
-# frit-sql-eda
-SQL queries to explore ceramic frit compositions
+# SQL-projects
+This repository contains various SQL projects for EDA, analytics, etc.
