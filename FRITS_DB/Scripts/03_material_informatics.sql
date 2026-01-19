@@ -3,24 +3,6 @@
 */
 USE frity;
 
--- Analysis: Top 5 Carriers per Oxide
--- Using a CTE to create a "Virtual View" of the composition.
-WITH v_compositions AS (
-    SELECT f.nazev as frit_name, o.chemvzorec as formula, s.mnozstvi as amount
-    FROM frity f 
-    JOIN slozeni s ON f.id = s.id_pol 
-    JOIN oxidy o ON s.id_sur = o.id
-),
-OxideRanking AS (
-    SELECT 
-        frit_name, formula, amount,
-        DENSE_RANK() OVER(PARTITION BY formula ORDER BY amount DESC) as oxide_rank
-    FROM v_compositions
-)
-SELECT * FROM OxideRanking
-WHERE oxide_rank <= 5
-ORDER BY formula, oxide_rank;
-
 -- Analysis: Potency Ratio Benchmarking
 -- Comparing individual frit concentrations against the database-wide average.
 WITH v_compositions AS (
@@ -40,5 +22,4 @@ SELECT
 FROM v_compositions v
 JOIN GlobalAverages g ON v.formula = g.formula
 WHERE v.amount > g.avg_db_amount
-ORDER BY potency_ratio DESC
-LIMIT 20;
+ORDER BY potency_ratio DESC;
