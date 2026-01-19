@@ -26,7 +26,7 @@ DELETE FROM frity WHERE id = '2171';
 -- During integrity check, ID 2042 was found in 'frity' with no data in 'slozeni'.
 -- QUERY USED TO FIND DISCREPANCIES:
 /*
-SELECT f.id, f.nazev 
+SELECT * 
 FROM frity f
 LEFT JOIN slozeni s ON f.id = s.id_pol
 WHERE s.id_pol IS NULL;
