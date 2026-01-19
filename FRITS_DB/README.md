@@ -35,9 +35,10 @@ The project is built on three core relational tables:
 ## 📂 Folder Structure
 ```text
 SQL-projects/FRITS_DB/
-├── Scripts/
-│   ├── 00_quick_exploration.sql     # Initial discovery
-│   ├── 01_data_integrity_audit.sql  # Stoichiometry validation
-│   ├── 02_chemical_profiling.sql    # Inventory variety analysis
-│   └── 03_material_informatics.sql  # Advanced ranking & potency
-└── README.md                        # Project documentation
+                  ├── Scripts/
+                  │   ├── 00_quick_exploration.sql     # Initial discovery
+                  │   ├── 01_data_integrity_audit.sql  # Stoichiometry validation
+                  │   ├── 02_chemical_profiling.sql    # Inventory variety analysis
+                  │   └── 03_material_informatics.sql  # Advanced ranking & potency
+                  └── README.md
+                      
