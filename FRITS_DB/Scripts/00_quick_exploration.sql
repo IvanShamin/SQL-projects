@@ -1,5 +1,5 @@
 /* STEP 0: INITIAL DATA EXPLORATION
-  Author: [Your Name]
+  Author: Ivan Shamin
   Description: Preliminary data inspection and development of ranking logic.
   This script serves as a scratchpad for verifying table relationships.
 */
