@@ -22,13 +22,15 @@ DELETE FROM slozeni WHERE id_pol = '2171';
 -- Step B: Delete the master record from 'frity' to maintain referential integrity.
 DELETE FROM frity WHERE id = '2171';
 
--- 3. ORPHANED RECORD IDENTIFICATION: (ID: 2042 | Name: A3352)
--- During integrity check, ID 2042 was found in 'frity' with no data in 'slozeni'.
--- QUERY USED TO FIND DISCREPANCIES:
-/*
-SELECT * 
-FROM frity f
-LEFT JOIN slozeni s ON f.id = s.id_pol
-WHERE s.id_pol IS NULL;
-*/
--- ACTION: Pending technologist decision on whether to populate or purge this record.
+-- 3. RESOLUTION OF ORPHANED RECORD: Frit 'A3352' (ID: 2042)
+-- Orphaned record identified via LEFT JOIN audit. 
+-- Technologist-verified composition added to populate the chemical profile.
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '1', '54.18');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '4', '14.16');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '5', '7.83');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '13', '12.69');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '6', '5.01');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '7', '0.65');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '16', '2.81');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '17', '1.34');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '18', '1.33');
