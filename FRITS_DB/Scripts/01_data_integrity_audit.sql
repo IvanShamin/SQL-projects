@@ -1,11 +1,11 @@
-/* STEP 1: DATA INTEGRITY & QUALITY AUDIT
-  Goal: Identify recipes that do not sum to 100% and check for data entry errors.
+/* --------------------------------------------------------------------------------
+PHASE 1: DATA QUALITY ASSURANCE & AUDIT
+Goal: Identify non-stoichiometric recipes and orphaned records.
+--------------------------------------------------------------------------------
 */
-USE frity;
 
--- Audit: Grand Totals and Variance
--- Precise stoichiometry is required for ceramic calculations.
--- This identifies frits needing manual correction.
+-- 1.1 Stoichiometry Audit (100% Check)
+-- Ceramic calculations require precise sums. This isolates data entry errors.
 SELECT 
     f.nazev AS frit_name,
     ROUND(SUM(s.mnozstvi), 1) AS total_percentage,
@@ -16,8 +16,8 @@ GROUP BY f.nazev
 HAVING total_percentage <> 100.0
 ORDER BY variance DESC;
 
--- Audit: Granular Composition Check
--- Uses Window Functions to see how each oxide contributes to the total frit sum.
+-- 1.2 Granular Composition Check
+-- Calculating running totals per frit to verify oxide counts.
 SELECT 
     f.nazev AS frit_name, 
     o.chemvzorec AS formula,
