@@ -1,7 +1,7 @@
-/* PHASE 5: TECHNICAL MODELING - DETAILED APPEN BREAKDOWN
-   ------------------------------------------------------
-   Goal: Show individual oxide chemistry and its CTE contribution,
-   alongside the Total Frit CTE and the Average CTE of all frits in the DB.
+/* --------------------------------------------------------------------------------
+PHASE 5: PREDICTIVE TECHNICAL MODELING
+Goal: Predict linear Coefficient of Thermal Expansion (CTE) via Appen Summation.
+--------------------------------------------------------------------------------
 */
 
 WITH AppenFactors AS (
