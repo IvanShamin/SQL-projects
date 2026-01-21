@@ -1,0 +1,346 @@
+/* STEP 0: INITIAL DATA EXPLORATION
+  Author: Ivan Shamin
+  Description: Preliminary data inspection and development of ranking logic.
+  This script serves as a scratchpad for verifying table relationships.
+*/
+
+-- 1. Metadata Inspection
+USE frity;
+SHOW TABLES; 
+-- Expected tables: 
+-- frity (Metadata), oxidy (Chemical Library), slozeni (Composition Junction)
+
+-- 2. Data Relationship Verification
+-- Joining the three-table schema to verify relational integrity.
+-- This shows the raw join before column selection.
+SELECT *
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol 
+JOIN oxidy o ON s.id_sur = o.id
+LIMIT 10;
+
+-- 3. Chemical Profile Construction
+-- Isolating necessary fields for ceramic analysis: Frit Name, Oxide Formula, and Quantity.
+SELECT 
+    f.nazev AS frit_name, 
+    o.chemvzorec AS formula,
+    s.mnozstvi AS amount
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol 
+JOIN oxidy o ON s.id_sur = o.id;
+
+-- 4. Logic Development: Oxide Ranking
+-- Applying DENSE_RANK to identify the hierarchy of oxides within each frit.
+-- This was the prototype for the "Top Carriers" report.
+SELECT 
+    f.nazev AS frit_name, 
+    o.chemvzorec AS formula,
+    s.mnozstvi AS amount,
+    DENSE_RANK() OVER(PARTITION BY o.chemvzorec ORDER BY s.mnozstvi DESC) AS oxide_rank
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol 
+JOIN oxidy o ON s.id_sur = o.id;
+
+-- 5. High-Concentration Identification (Top 5)
+-- Final exploration query to isolate the most potent sources for each chemical.
+WITH CTE_Ranking AS (
+    SELECT 
+        f.nazev AS frit_name,
+        o.chemvzorec AS formula,
+        s.mnozstvi AS amount,
+        RANK() OVER(PARTITION BY o.chemvzorec ORDER BY s.mnozstvi DESC) AS oxide_rank
+    FROM frity f 
+    JOIN slozeni s ON f.id = s.id_pol
+    JOIN oxidy o ON s.id_sur = o.id
+)
+SELECT * FROM CTE_Ranking
+WHERE oxide_rank <= 5;
+
+/* STEP 1: DATA INTEGRITY & QUALITY AUDIT
+  Goal: Identify recipes that do not sum to 100% and check for data entry errors.
+*/
+USE frity;
+
+-- Audit: Grand Totals and Variance
+-- Precise stoichiometry is required for ceramic calculations.
+-- This identifies frits needing manual correction.
+SELECT 
+    f.nazev AS frit_name,
+    ROUND(SUM(s.mnozstvi), 1) AS total_percentage,
+    ABS(100 - SUM(s.mnozstvi)) AS variance
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol 
+GROUP BY f.nazev
+HAVING total_percentage <> 100.0
+ORDER BY variance DESC;
+
+-- Audit: Granular Composition Check
+-- Uses Window Functions to see how each oxide contributes to the total frit sum.
+SELECT 
+    f.nazev AS frit_name, 
+    o.chemvzorec AS formula,
+    s.mnozstvi AS oxide_amount,
+    COUNT(s.mnozstvi) OVER(PARTITION BY f.nazev) AS count_of_oxides,
+    SUM(s.mnozstvi) OVER(PARTITION BY f.nazev) AS running_total
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol 
+JOIN oxidy o ON s.id_sur = o.id
+ORDER BY count_of_oxides DESC, frit_name;
+
+/* PHASE 1.1: DATA REMEDIATION & STRUCTURAL INTEGRITY
+   -------------------------------------------------------
+   Following the Phase 1 Audit, these corrections were applied to ensure 
+   the database is chemically valid and relationally sound for Phase 2.
+*/
+
+-- 1. STOICHIOMETRIC CORRECTION: Frit 'ZMP 05421' (ID: 2642)
+-- Previously identified as an anomaly (missing oxides).
+-- Technologist-verified composition added to achieve 100% total sum.
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '8', '8.22');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '4', '3');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '5', '8.55');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '6', '14.37');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '7', '1.6');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '16', '0.68');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2642', '17', '4.08');
+
+-- 2. DUPLICATE RESOLUTION: (IDs: 2171 & 2172)
+-- Both IDs shared the same name. ID 2171 was identified as a redundant record.
+-- Step A: Delete composition entries associated with the redundant ID.
+DELETE FROM slozeni WHERE id_pol = '2171';
+-- Step B: Delete the master record from 'frity' to maintain referential integrity.
+DELETE FROM frity WHERE id = '2171';
+
+-- 3. RESOLUTION OF ORPHANED RECORD: Frit 'A3352' (ID: 2042)
+-- Orphaned record identified via LEFT JOIN audit. 
+-- Technologist-verified composition added to populate the chemical profile.
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '1', '54.18');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '4', '14.16');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '5', '7.83');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '13', '12.69');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '6', '5.01');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '7', '0.65');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '16', '2.81');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '17', '1.34');
+INSERT INTO slozeni (id_pol, id_sur, mnozstvi) VALUES ('2042', '18', '1.33');
+
+/* STEP 2: INVENTORY & CHEMICAL PROFILING
+  Goal: Analyze frit complexity and oxide distribution across the library.
+*/
+USE frity;
+
+-- Report: Complexity Audit
+-- Categorizes frits by the number of oxides provided (Simple vs. Complex).
+SELECT 
+    f.nazev AS frit_name,
+    COUNT(s.id_sur) AS oxide_count,
+    GROUP_CONCAT(o.chemvzorec SEPARATOR ', ') AS oxide_list
+FROM frity f
+JOIN slozeni s ON f.id = s.id_pol
+JOIN oxidy o ON s.id_sur = o.id
+GROUP BY f.nazev
+ORDER BY oxide_count DESC;
+
+-- Report: Global Oxide Distribution (The "Staples" Report)
+-- Statistical summary of how often each oxide appears and its typical concentration.
+SELECT 
+    o.chemvzorec AS formula,
+    COUNT(f.id) AS appearance_frequency,
+    ROUND(AVG(s.mnozstvi), 2) AS avg_concentration,
+    MAX(s.mnozstvi) AS max_concentration,
+    MIN(s.mnozstvi) AS min_concentration
+FROM oxidy o
+JOIN slozeni s ON o.id = s.id_sur
+JOIN frity f ON s.id_pol = f.id
+GROUP BY o.id, o.chemvzorec
+ORDER BY appearance_frequency DESC;
+
+/* STEP 3: MATERIAL INFORMATICS & POTENCY
+  Goal: Identify 'Signature' frits and primary chemical carriers.
+*/
+USE frity;
+
+-- Analysis: Potency Ratio Benchmarking
+-- Comparing individual frit concentrations against the database-wide average.
+WITH v_compositions AS (
+    SELECT f.nazev as frit_name, o.chemvzorec as formula, s.mnozstvi as amount
+    FROM frity f 
+    JOIN slozeni s ON f.id = s.id_pol 
+    JOIN oxidy o ON s.id_sur = o.id
+),
+GlobalAverages AS (
+    SELECT formula, AVG(amount) as avg_db_amount
+    FROM v_compositions
+    GROUP BY formula
+)
+SELECT 
+    v.frit_name, v.formula, v.amount AS concentration,
+    ROUND(v.amount / g.avg_db_amount, 2) AS potency_ratio
+FROM v_compositions v
+JOIN GlobalAverages g ON v.formula = g.formula
+WHERE v.amount > g.avg_db_amount
+ORDER BY potency_ratio DESC;
+
+/* GLAZURA FRIT COST ANALYSIS - DETAILED BREAKDOWN
+  This script calculates the total cost per metric ton (mT) for each frit
+  while displaying the specific price contribution of every oxide.
+  
+  Logic: 
+  - (mnozstvi / 100.0) converts percentage composition to mass fraction.
+  - SUM(...) OVER (PARTITION BY...) calculates the total frit cost without collapsing rows.
+*/
+
+WITH OxidePrices AS (
+    SELECT id, chemvzorec,
+    CASE chemvzorec
+        WHEN 'Ag2O'   THEN 750000 WHEN 'WO3'    THEN 85000
+        WHEN 'Pr6O11' THEN 75000  WHEN 'SnO2'   THEN 65000
+        WHEN 'MoO3'   THEN 43000  WHEN 'NiO'    THEN 19000
+        WHEN 'Sb2O5'  THEN 17000  WHEN 'Bi2O3'  THEN 17000
+        WHEN 'Se'     THEN 16000  WHEN 'CuO'    THEN 9500
+        WHEN 'V2O5'   THEN 8500   WHEN 'Y2O3'   THEN 6000
+        WHEN 'Li2O'   THEN 5500   WHEN 'Cr2O3'  THEN 4300
+        WHEN 'CoO'    THEN 3800   WHEN 'ZrO2'   THEN 3300
+        WHEN 'CdO'    THEN 3300   WHEN 'PbO'    THEN 2800
+        WHEN 'TiO2'   THEN 2700   WHEN 'ZnO'    THEN 2700
+        WHEN 'B2O3'   THEN 2200   WHEN 'SrO2'   THEN 2200
+        WHEN 'MnO2'   THEN 2200   WHEN 'P2O5'   THEN 2050
+        WHEN 'CeO2'   THEN 1500   WHEN 'K2O'    THEN 1400
+        WHEN 'MnO'    THEN 1300   WHEN 'SrO'    THEN 900
+        WHEN 'BaO'    THEN 800    WHEN 'F'      THEN 700
+        WHEN 'MgO'    THEN 500    WHEN 'Al2O3'  THEN 600
+        WHEN 'Na2O'   THEN 1000   WHEN 'S'      THEN 300
+        WHEN 'CaO'    THEN 135    WHEN 'Fe2O3'  THEN 100
+        WHEN 'SiO2'   THEN 70     WHEN 'F2'     THEN 0
+        ELSE 0 
+    END AS price_per_unit
+    FROM oxidy
+)
+SELECT 
+    f.nazev AS frit_name,
+    op.chemvzorec AS oxide_name,
+    s.mnozstvi AS percentage_amount,
+    op.price_per_unit,
+    -- Calculation of individual oxide cost contribution for transparency
+    ROUND((s.mnozstvi / 100.0) * op.price_per_unit, 2) AS oxide_cost_contribution,
+    -- Total cost for the entire frit (summed across all oxides in that frit)
+    ROUND(SUM((s.mnozstvi / 100.0) * op.price_per_unit) OVER (PARTITION BY f.nazev), 2) AS total_frit_cost_per_mT
+FROM frity f
+JOIN slozeni s ON f.id = s.id_pol
+JOIN OxidePrices op ON s.id_sur = op.id
+ORDER BY total_frit_cost_per_mT DESC, percentage_amount DESC;
+
+/* GLAZURA FRIT COST ESTIMATOR 
+  Calculates the theoretical cost of a frit based on the market price of its constituent oxides.
+*/
+
+WITH OxidePrices AS (
+    SELECT id, chemvzorec,
+    CASE chemvzorec
+        WHEN 'Ag2O'   THEN 750000 WHEN 'WO3'    THEN 85000
+        WHEN 'Pr6O11' THEN 75000  WHEN 'SnO2'   THEN 65000
+        WHEN 'MoO3'   THEN 43000  WHEN 'NiO'    THEN 19000
+        WHEN 'Sb2O5'  THEN 17000  WHEN 'Bi2O3'  THEN 17000
+        WHEN 'Se'     THEN 16000  WHEN 'CuO'    THEN 9500
+        WHEN 'V2O5'   THEN 8500   WHEN 'Y2O3'   THEN 6000
+        WHEN 'Li2O'   THEN 5500   WHEN 'Cr2O3'  THEN 4300
+        WHEN 'CoO'    THEN 3800   WHEN 'ZrO2'   THEN 3300
+        WHEN 'CdO'    THEN 3300   WHEN 'PbO'    THEN 2800
+        WHEN 'TiO2'   THEN 2700   WHEN 'ZnO'    THEN 2700
+        WHEN 'B2O3'   THEN 2200   WHEN 'SrO2'   THEN 2200
+        WHEN 'MnO2'   THEN 2200   WHEN 'P2O5'   THEN 2050
+        WHEN 'CeO2'   THEN 1500   WHEN 'K2O'    THEN 1400
+        WHEN 'MnO'    THEN 1300   WHEN 'SrO'    THEN 900
+        WHEN 'BaO'    THEN 800    WHEN 'F'      THEN 700
+        WHEN 'MgO'    THEN 500    WHEN 'Al2O3'  THEN 600
+        WHEN 'Na2O'   THEN 1000   WHEN 'S'      THEN 300
+        WHEN 'CaO'    THEN 135    WHEN 'Fe2O3'  THEN 100
+        WHEN 'SiO2'   THEN 70     WHEN 'F2'     THEN 0
+        ELSE 0 
+    END AS price_per_unit
+    FROM oxidy
+)
+SELECT 
+    f.nazev AS frit_name,
+    -- Grouping by frit to get the total sum
+    ROUND(SUM((s.mnozstvi / 100.0) * op.price_per_unit), 2) AS estimated_cost_per_mT,
+    -- Optional: Price level category for Marketing
+    CASE 
+        WHEN SUM((s.mnozstvi / 100.0) * op.price_per_unit) < 400 THEN 'Price Group 1 (Eco)'
+        WHEN SUM((s.mnozstvi / 100.0) * op.price_per_unit) < 800 THEN 'Price Group 2 (Standard)'
+        ELSE 'Price Group 3 (Premium/Specialty)'
+    END AS cost_tier
+FROM frity f
+JOIN slozeni s ON f.id = s.id_pol
+JOIN OxidePrices op ON s.id_sur = op.id
+GROUP BY f.nazev
+ORDER BY estimated_cost_per_mT DESC;
+
+/* PHASE 5: TECHNICAL MODELING - DETAILED APPEN BREAKDOWN
+   ------------------------------------------------------
+   Goal: Show individual oxide chemistry and its CTE contribution,
+   alongside the Total Frit CTE and the Average CTE of all frits in the DB.
+*/
+
+WITH AppenFactors AS (
+    SELECT id, chemvzorec,
+CASE chemvzorec
+        -- PRIMARY GLAZURA OXIDES 
+        WHEN 'Na2O'   THEN 395.0 WHEN 'K2O'    THEN 465.0 
+        WHEN 'Li2O'   THEN 215.0 WHEN 'CaO'    THEN 130.0 
+        WHEN 'BaO'    THEN 200.0 WHEN 'MgO'    THEN 60.0  
+        WHEN 'ZnO'    THEN 50.0  WHEN 'PbO'    THEN 130.0 
+        WHEN 'SrO'    THEN 160.0 WHEN 'SiO2'   THEN 38.0  
+        WHEN 'Al2O3'  THEN -30.0 WHEN 'ZrO2'   THEN 60.0  
+        WHEN 'TiO2'   THEN 30.0  WHEN 'SnO2'   THEN -45.0
+        WHEN 'Fe2O3'  THEN 55.0  WHEN 'CoO'    THEN 50.0
+        WHEN 'CuO'    THEN 50.0  WHEN 'MnO'    THEN 105.0
+        WHEN 'NiO'    THEN 50.0  WHEN 'Cr2O3'  THEN -50.0
+        WHEN 'CeO2'   THEN 100.0 WHEN 'V2O5'   THEN 150.0
+
+        -- NEWLY ADDED FACTORS FROM YOUR REQUEST
+        WHEN 'P2O5'   THEN 140.0 -- High expansion (network loosener in silicates)
+        WHEN 'B2O3'   THEN 0.1   -- Standard Appen baseline (often near zero/negative) [cite: 651, 680]
+        WHEN 'MnO2'   THEN 80.0  -- Similar to other transition metals
+        WHEN 'Sb2O5'  THEN 40.0  -- Antimony (stabilizer)
+        WHEN 'Bi2O3'  THEN 100.0 -- Bismuth (heavy metal flux)
+        WHEN 'Ag2O'   THEN 350.0 -- Silver (Highly expansive alkali-like behavior)
+        WHEN 'MoO3'   THEN 40.0  -- Molybdenum
+        WHEN 'WO3'    THEN 30.0  -- Tungsten
+        WHEN 'Pr6O11' THEN 90.0  -- Praseodymium (Rare earth average)
+        WHEN 'CdO'    THEN 110.0 -- Cadmium
+        WHEN 'Se'      THEN 50.0  -- Selenium
+        WHEN 'S'       THEN 100.0 -- Sulfur (highly variable, estimated)
+        WHEN 'F2'      THEN 50.0  -- Fluorine (lowers expansion by breaking bonds)
+        ELSE 0 
+    END AS appen_factor
+    FROM oxidy
+),
+FritTotals AS (
+    -- First, we aggregate at the Frit level to get the actual Total CTE per frit
+    SELECT 
+        f.id AS frit_id,
+        f.nazev AS frit_name,
+        SUM(s.mnozstvi * af.appen_factor) * 0.01 AS total_cte_400
+    FROM frity f
+    JOIN slozeni s ON f.id = s.id_pol
+    JOIN AppenFactors af ON s.id_sur = af.id
+    GROUP BY f.id, f.nazev
+),
+FinalReport AS (
+    -- Now we join back to the oxides to show the detailed breakdown
+    SELECT 
+        ft.frit_name,
+        o.chemvzorec AS oxide,
+        s.mnozstvi AS oxide_pct,
+        ROUND((s.mnozstvi * af.appen_factor) * 0.01, 3) AS oxide_contribution,
+        ROUND(ft.total_cte_400, 2) AS total_frit_cte_400,
+        -- Calculate the average of the totals across the entire frit library
+        ROUND(AVG(ft.total_cte_400) OVER(), 2) AS library_avg_cte_400
+    FROM FritTotals ft
+    JOIN slozeni s ON ft.frit_id = s.id_pol
+    JOIN oxidy o ON s.id_sur = o.id
+    JOIN AppenFactors af ON o.id = af.id
+)
+SELECT * FROM FinalReport
+ORDER BY total_frit_cte_400 DESC, frit_name, oxide_pct DESC;
