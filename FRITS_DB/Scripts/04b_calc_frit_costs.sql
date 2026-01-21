@@ -1,3 +1,8 @@
+/* --------------------------------------------------------------------------------
+PHASE 4B: ECONOMIC IMPACT ANALYSIS
+Goal: Estimate raw material costs per metric ton (mT) based on oxide prices and separating by groups.
+--------------------------------------------------------------------------------
+
 /* GLAZURA FRIT COST ESTIMATOR 
   Calculates the theoretical cost of a frit based on the market price of its constituent oxides.
 */
