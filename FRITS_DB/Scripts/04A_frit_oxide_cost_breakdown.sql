@@ -1,10 +1,7 @@
-/* GLAZURA FRIT COST ANALYSIS - DETAILED BREAKDOWN
-  This script calculates the total cost per metric ton (mT) for each frit
-  while displaying the specific price contribution of every oxide.
-  
-  Logic: 
-  - (mnozstvi / 100.0) converts percentage composition to mass fraction.
-  - SUM(...) OVER (PARTITION BY...) calculates the total frit cost without collapsing rows.
+/* --------------------------------------------------------------------------------
+PHASE 4: ECONOMIC IMPACT ANALYSIS
+Goal: Estimate raw material costs per metric ton (mT) based on oxide prices.
+--------------------------------------------------------------------------------
 */
 
 WITH OxidePrices AS (
@@ -35,14 +32,14 @@ WITH OxidePrices AS (
 )
 SELECT 
     f.nazev AS frit_name,
-    op.chemvzorec AS oxide_name,
-    s.mnozstvi AS percentage_amount,
-    op.price_per_unit,
-    -- Calculation of individual oxide cost contribution for transparency
-    ROUND((s.mnozstvi / 100.0) * op.price_per_unit, 2) AS oxide_cost_contribution,
-    -- Total cost for the entire frit (summed across all oxides in that frit)
-    ROUND(SUM((s.mnozstvi / 100.0) * op.price_per_unit) OVER (PARTITION BY f.nazev), 2) AS total_frit_cost_per_mT
+    ROUND(SUM((s.mnozstvi / 100.0) * op.price_per_unit), 2) AS estimated_cost_per_mT,
+    CASE 
+        WHEN SUM((s.mnozstvi / 100.0) * op.price_per_unit) < 400 THEN 'Eco'
+        WHEN SUM((s.mnozstvi / 100.0) * op.price_per_unit) < 800 THEN 'Standard'
+        ELSE 'Premium'
+    END AS cost_tier
 FROM frity f
 JOIN slozeni s ON f.id = s.id_pol
 JOIN OxidePrices op ON s.id_sur = op.id
-ORDER BY total_frit_cost_per_mT DESC, percentage_amount DESC;
+GROUP BY f.nazev
+ORDER BY estimated_cost_per_mT DESC;
