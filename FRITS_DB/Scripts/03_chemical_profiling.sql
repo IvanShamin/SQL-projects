@@ -19,6 +19,8 @@ ORDER BY appearance_frequency DESC;
 
 -- 3.2 Potency Ratio Benchmarking
 -- Identifying 'Signature' frits by comparing them to database-wide averages.
+  Goal: Identify 'Signature' frits and primary chemical carriers.
+*/
 WITH v_compositions AS (
     SELECT f.nazev as frit_name, o.chemvzorec as formula, s.mnozstvi as amount
     FROM frity f 
@@ -31,7 +33,8 @@ GlobalAverages AS (
     GROUP BY formula
 )
 SELECT 
-    v.frit_name, v.formula, v.amount,
+    v.frit_name, v.formula, v.amount AS concentration,
+    ROUND(avg_db_amount,2) as avg_db_amount,
     ROUND(v.amount / g.avg_db_amount, 2) AS potency_ratio
 FROM v_compositions v
 JOIN GlobalAverages g ON v.formula = g.formula
