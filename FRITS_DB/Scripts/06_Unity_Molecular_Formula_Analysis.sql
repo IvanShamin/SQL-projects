@@ -62,3 +62,63 @@ SELECT
 FROM MolarEquivalents me
 JOIN FluxSums fs ON me.frit_name = fs.frit_name
 ORDER BY me.frit_name, me.oxide_group;
+
+/* PHASE 06: UNITY MOLECULAR FORMULA (SEGER FORMULA) CALCULATOR
+   -----------------------------------------------------------
+   Goal: Calculate the Seger Formula (UMF) for each frit (Fluxes = 1.0).
+   This standardizes chemistry for scientific comparison.
+*/
+
+WITH MolarConversion AS (
+    -- 1. Convert Weight Percentage to Molar Equivalents
+    SELECT 
+        f.nazev AS frit_name,
+        o.chemvzorec,
+        (s.mnozstvi / mw.mw) AS moles,
+        CASE 
+            WHEN o.chemvzorec IN ('Li2O','Na2O','K2O','MgO','CaO','ZnO','BaO','PbO','SrO') THEN 'FLUX'
+            WHEN o.chemvzorec IN ('Al2O3','B2O3','Fe2O3') THEN 'STABILIZER'
+            ELSE 'FORMER'
+        END AS oxide_group
+    FROM frity f
+    JOIN slozeni s ON f.id = s.id_pol
+    JOIN oxidy o ON s.id_sur = o.id
+    JOIN (
+        -- Table of Oxide Molar Weights
+        SELECT id, 
+        CASE chemvzorec 
+            WHEN 'Li2O' THEN 29.88 WHEN 'Na2O' THEN 61.98 WHEN 'K2O' THEN 94.20
+            WHEN 'MgO' THEN 40.30 WHEN 'CaO' THEN 56.08 WHEN 'ZnO' THEN 81.38
+            WHEN 'PbO' THEN 223.20 WHEN 'B2O3' THEN 69.62 WHEN 'Al2O3' THEN 101.96
+            WHEN 'SiO2' THEN 60.08 WHEN 'ZrO2' THEN 123.22 WHEN 'TiO2' THEN 79.87
+            ELSE 100 END AS mw FROM oxidy
+    ) mw ON o.id = mw.id
+),
+FluxSum AS (
+    -- 2. Sum of all moles in the FLUX category per frit (Unity Base)
+    SELECT 
+        frit_name,
+        SUM(moles) AS total_flux_moles
+    FROM MolarConversion
+    WHERE oxide_group = 'FLUX'
+    GROUP BY frit_name
+),
+-- 3. Final Normalization (Dividing all components by the Flux Sum)
+UMF_Data AS (
+    SELECT 
+        mc.frit_name,
+        mc.chemvzorec,
+        mc.oxide_group,
+        ROUND(mc.moles / fs.total_flux_moles, 4) AS seger_value
+    FROM MolarConversion mc
+    JOIN FluxSum fs ON mc.frit_name = fs.frit_name
+)
+
+-- Summary of Molar Ratios by Group
+SELECT 
+    frit_name, 
+    oxide_group, 
+    SUM(seger_value) AS group_molar_sum
+FROM UMF_Data
+GROUP BY frit_name, oxide_group
+ORDER BY frit_name, FIELD(oxide_group, 'FLUX', 'STABILIZER', 'FORMER');
