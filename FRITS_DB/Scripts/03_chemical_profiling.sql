@@ -40,3 +40,20 @@ FROM v_compositions v
 JOIN GlobalAverages g ON v.formula = g.formula
 WHERE v.amount > g.avg_db_amount
 ORDER BY potency_ratio DESC;
+
+/* --------------------------------------------------------------------------------
+PHASE 3.3: GLOBAL OXIDE FREQUENCY REPORT
+Goal: Rank all 38 oxides by their appearance frequency in the portfolio.
+--------------------------------------------------------------------------------
+*/
+
+SELECT 
+    o.chemvzorec AS formula, 
+    COUNT(f.nazev) AS oxide_frequency, 
+    ROUND(SUM(s.mnozstvi), 2) AS sum_oxide_total,
+    ROUND(AVG(s.mnozstvi), 2) AS avg_concentration
+FROM frity f 
+JOIN slozeni s ON f.id = s.id_pol
+JOIN oxidy o ON s.id_sur = o.id
+GROUP BY o.chemvzorec
+ORDER BY oxide_frequency DESC;
