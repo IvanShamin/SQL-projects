@@ -15,4 +15,4 @@ SQL-based analysis of GoodThought NGO assignments, donations, and regional impac
 1. Top impact assignment per region (using ROW_NUMBER())
 2. Assignments with highest rounded donation amounts
 
-See the notebook → [goodthought-ngo-impact-analysis.ipynb](goodthought-ngo-impact-analysis.ipynb)
+
