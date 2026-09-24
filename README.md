@@ -1,6 +1,6 @@
 # SQL-projects
 SQL Projects
-A collection of SQL and data projects built around real industrial data and structured learning.
+Schema modelled on a real production database; all data anonymised
 
 ## FRITS_DB
 Analysis of a ceramic frit database (1,100+ materials) used in industrial glaze production.
